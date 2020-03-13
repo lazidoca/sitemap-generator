@@ -6,6 +6,7 @@ from pysitemap.format_processors.xml import XMLWriter
 from pysitemap.format_processors.text import TextWriter
 import aiohttp
 
+USER_AGENTS = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/79.0.3945.79 Safari/537.36'
 
 class Crawler:
 
@@ -35,7 +36,7 @@ class Crawler:
         self.sem = asyncio.Semaphore(maxtasks)
 
         # connector stores cookies between requests and uses connection pool
-        self.session = aiohttp.ClientSession()
+        self.session = aiohttp.ClientSession(headers = {'User-Agent': USER_AGENTS})
         self.writer = self.format_processors.get(out_format)(out_file)
 
     async def run(self):
