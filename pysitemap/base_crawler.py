@@ -15,14 +15,8 @@ class Crawler:
         'txt': TextWriter
     }
 
-    def __init__(self,
-                 rooturl,
-                 out_file,
-                 proxies=None,
-                 out_format='xml',
-                 maxtasks=100,
-                 todo_queue_backend=set,
-                 done_backend=dict):
+    def __init__(self, rooturl, out_file, out_format='xml', maxtasks=100,
+                 todo_queue_backend=set, done_backend=dict):
         """
         Crawler constructor
         :param rooturl: root url of site
@@ -40,7 +34,6 @@ class Crawler:
         self.done = done_backend()
         self.tasks = set()
         self.sem = asyncio.Semaphore(maxtasks)
-        self.proxies = proxies
 
         # connector stores cookies between requests and uses connection pool
         self.session = aiohttp.ClientSession(headers = {'User-Agent': USER_AGENTS})
@@ -97,31 +90,26 @@ class Crawler:
         self.todo_queue.remove(url)
         self.busy.add(url)
 
-        count = 0
-        while count < 3:
-            try:
-                proxy = next(self.proxies, None)
-                resp = await self.session.get(url, proxy=proxy)  # await response
-            except Exception as exc:
-                # on any exception mark url as BAD
-                print('...', url, 'has error', repr(str(exc)))
-                count += 1
-                if count == 3:
-                    self.done[url] = False
-            else:
-                # only url with status == 200 and content type == 'text/html' parsed
-                if (resp.status == 200 and
-                        ('text/html' in resp.headers.get('content-type'))):
-                    data = (await resp.read()).decode('utf-8', 'replace')
-                    urls = re.findall(r'(?i)href=["\']?([^\s"\'<>]+)', data)
-                    asyncio.Task(self.addurls([(u, url) for u in urls]))
+        try:
+            resp = await self.session.get(url)  # await response
+        except Exception as exc:
+            # on any exception mark url as BAD
+            print('...', url, 'has error', repr(str(exc)))
+            self.done[url] = False
+        else:
+            # only url with status == 200 and content type == 'text/html' parsed
+            if (resp.status == 200 and
+                    ('text/html' in resp.headers.get('content-type'))):
+                data = (await resp.read()).decode('utf-8', 'replace')
+                urls = re.findall(r'(?i)href=["\']?([^\s"\'<>]+)', data)
+                asyncio.Task(self.addurls([(u, url) for u in urls]))
 
-                # even if we have no exception, we can mark url as good
-                resp.close()
-                self.done[url] = True
-                break
+            # even if we have no exception, we can mark url as good
+            resp.close()
+            self.done[url] = True
 
         self.busy.remove(url)
         logging.info(len(self.done), 'completed tasks,', len(self.tasks),
               'still pending, todo_queue', len(self.todo_queue))
+
 
